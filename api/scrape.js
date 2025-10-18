@@ -17,38 +17,47 @@ const model = genAI.getGenerativeModel({ model: "gemini-pro"});
 
 // --- Main Scraper Function ---
 async function runScraper() {
-  console.log("--- Starting Daily Sports News Scraper ---");
+  console.log("--- Starting Search-Based Sports News Scraper ---");
 
   try {
-    // --- STEP 1: Scrape the main news page for article links ---
-    const urlToScrape = 'https://www.espn.com/news/';
+    // --- STEP 1: Perform a Google search for the news ---
+    const searchQuery = "top 5 sports news";
     const scrapingbeeUrl = 'https://app.scrapingbee.com/api/v1/';
     
-    console.log(`[1/4] Fetching main news page: ${urlToScrape}`);
+    console.log(`[1/4] Performing Google search for: "${searchQuery}"`);
     
-    const { data: pageData } = await axios.get(scrapingbeeUrl, {
-      params: { 'api_key': scrapingbeeApiKey, 'url': urlToScrape }
-    });
-    
-    console.log("    -> Main page fetched successfully.");
-
-    const $ = cheerio.load(pageData);
-    const newsLinks = [];
-    
-    // THIS IS THE CRITICAL FIX: The selector is updated from 'article...' to 'section...'
-    $('section.contentItem a.contentItem__content').each((i, el) => {
-      if (newsLinks.length < 5) {
-        const url = $(el).attr('href');
-        if (url && !url.startsWith('http')) {
-            newsLinks.push(`https://www.espn.com${url}`);
-        }
+    // To perform a search, we tell ScrapingBee to use Google.
+    // The 'search_for' parameter is specific to ScrapingBee.
+    const { data: searchResultsPage } = await axios.get(scrapingbeeUrl, {
+      params: {
+        'api_key': scrapingbeeApiKey,
+        'search_for': searchQuery,
+        'nb_results': '10' // Ask for a few more results in case some are not news articles
       }
     });
+    
+    console.log("    -> Google search completed successfully.");
 
-    console.log(`[2/4] Found ${newsLinks.length} article links to process.`);
+    const $ = cheerio.load(searchResultsPage);
+    const newsLinks = [];
+    
+    // Google's organic search results are typically in a div with id="organic-results"
+    // We look for all links (<a>) within elements that have a <h3> tag.
+    $('#organic-results a:has(h3)').each((i, el) => {
+        // We only want the top 5 valid news links
+        if (newsLinks.length < 5) {
+            const url = $(el).attr('href');
+            // We only want valid, absolute URLs that are not from Google itself.
+            if (url && url.startsWith('http') && !url.includes('google.com')) {
+                newsLinks.push(url);
+            }
+        }
+    });
+
+    console.log(`[2/4] Found ${newsLinks.length} valid article links from search results.`);
 
     if (newsLinks.length === 0) {
-      console.warn("    -> WARNING: No article links were found. The HTML selector for the main page is likely broken. Stopping script.");
+      console.warn("    -> WARNING: No valid article links found in Google search results. The structure of Google's results page may have changed. Stopping script.");
       return; 
     }
 
@@ -59,13 +68,18 @@ async function runScraper() {
       try {
         console.log(`\n    -> Processing article: ${link}`);
         
+        // Scrape individual article content using ScrapingBee
         const { data: articleData } = await axios.get(scrapingbeeUrl, {
           params: { 'api_key': scrapingbeeApiKey, 'url': link }
         });
         
         const article$ = cheerio.load(articleData);
-        const title = article$('header.article-header h1').text().trim();
-        const articleText = article$('div.article-body p').text().trim();
+        
+        // GENERIC SELECTORS: These are more likely to work on different news sites.
+        // We first try to get a specific article title, but fall back to the general page title.
+        const title = (article$('h1').first().text() || article$('title').text()).trim();
+        // We combine the text from all paragraph tags (<p>) to form the article body.
+        const articleText = article$('p').text().trim();
 
         if (title && articleText) {
           console.log(`       - Content extracted successfully. Title: "${title}"`);
