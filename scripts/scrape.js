@@ -1,10 +1,10 @@
-// This script runs in GitHub Actions, not on Vercel.
+// This script is designed to be run directly by Node.js in GitHub Actions.
 const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-// These environment variables will be provided by GitHub Actions secrets
+// These environment variables are provided by the GitHub Actions workflow secrets
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -14,10 +14,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-pro"});
 
-async function getLatestNews() {
+async function runScraper() {
   try {
     console.log("Starting to scrape the main news page...");
-    const urlToScrape = 'https://www.espn.com/latest/';
+    
+    // THIS IS THE UPDATED URL
+    const urlToScrape = 'https://www.espn.com/news/';
+    
     const scrapingbeeUrl = 'https://app.scrapingbee.com/api/v1/';
 
     const { data: pageData } = await axios.get(scrapingbeeUrl, {
@@ -64,7 +67,8 @@ async function getLatestNews() {
 
     if (summarizedNews.length > 0) {
       console.log(`Saving ${summarizedNews.length} new articles to Supabase...`);
-      const { error } = await supabase.from('sports_news').insert(summarizedNews);
+      // Using 'upsert' to avoid duplicate entries based on the URL
+      const { error } = await supabase.from('sports_news').upsert(summarizedNews, { onConflict: 'url' });
       if (error) {
         console.error("Error saving to Supabase:", error);
       } else {
@@ -73,8 +77,9 @@ async function getLatestNews() {
     }
   } catch (error) {
     console.error('A critical error occurred in the main process:', error);
+    process.exit(1); // Exit with an error code to make the GitHub Action fail
   }
 }
 
 // Run the main function
-getLatestNews();
+runScraper();
