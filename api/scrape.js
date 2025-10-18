@@ -26,13 +26,12 @@ async function runScraper() {
     
     console.log(`[1/4] Performing Google search for: "${searchQuery}"`);
     
-    // To perform a search, we tell ScrapingBee to use Google.
-    // The 'search_for' parameter is specific to ScrapingBee.
+    // THE FIX IS HERE: Corrected the parameter names for the ScrapingBee API call.
     const { data: searchResultsPage } = await axios.get(scrapingbeeUrl, {
       params: {
         'api_key': scrapingbeeApiKey,
-        'search_for': searchQuery,
-        'nb_results': '10' // Ask for a few more results in case some are not news articles
+        'search': searchQuery,      // CORRECTED: Was 'search_for'
+        'num_results': '10'       // CORRECTED: Was 'nb_results'
       }
     });
     
@@ -41,13 +40,9 @@ async function runScraper() {
     const $ = cheerio.load(searchResultsPage);
     const newsLinks = [];
     
-    // Google's organic search results are typically in a div with id="organic-results"
-    // We look for all links (<a>) within elements that have a <h3> tag.
     $('#organic-results a:has(h3)').each((i, el) => {
-        // We only want the top 5 valid news links
         if (newsLinks.length < 5) {
             const url = $(el).attr('href');
-            // We only want valid, absolute URLs that are not from Google itself.
             if (url && url.startsWith('http') && !url.includes('google.com')) {
                 newsLinks.push(url);
             }
@@ -68,17 +63,13 @@ async function runScraper() {
       try {
         console.log(`\n    -> Processing article: ${link}`);
         
-        // Scrape individual article content using ScrapingBee
         const { data: articleData } = await axios.get(scrapingbeeUrl, {
           params: { 'api_key': scrapingbeeApiKey, 'url': link }
         });
         
         const article$ = cheerio.load(articleData);
         
-        // GENERIC SELECTORS: These are more likely to work on different news sites.
-        // We first try to get a specific article title, but fall back to the general page title.
         const title = (article$('h1').first().text() || article$('title').text()).trim();
-        // We combine the text from all paragraph tags (<p>) to form the article body.
         const articleText = article$('p').text().trim();
 
         if (title && articleText) {
