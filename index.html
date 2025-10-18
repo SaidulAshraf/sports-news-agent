@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Top 5 Sports News</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; background-color: #f4f4f9; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+    h1 { color: #2c3e50; text-align: center; }
+    #loader { text-align: center; font-size: 1.2em; }
+    .news-item { background-color: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .news-item h2 { margin-top: 0; font-size: 1.5em; }
+    .news-item h2 a { text-decoration: none; color: #3498db; }
+    .news-item h2 a:hover { text-decoration: underline; }
+    .news-item p { margin-bottom: 0; }
+    .timestamp { color: #7f8c8d; font-size: 0.9em; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+  <h1>Latest AI-Summarized Sports News</h1>
+  <div id="loader">Loading news...</div>
+  <div id="news-container"></div>
+
+  <!-- Import the Supabase client library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    const newsContainer = document.getElementById('news-container');
+    const loader = document.getElementById('loader');
+
+    // IMPORTANT: Replace these with your actual Supabase project URL and public anon key!
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    // Initialize the Supabase client
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function displayNews() {
+      try {
+        // Fetch data from the 'sports_news' table
+        const { data, error } = await supabase
+          .from('sports_news')
+          .select('title, url, summary, created_at')
+          .order('created_at', { ascending: false }) // Show newest first
+          .limit(20); // Get the latest 20 entries
+
+        if (error) {
+          throw error; // If there's an error, stop and go to the catch block
+        }
+
+        if (data.length === 0) {
+          newsContainer.innerHTML = '<p>No news found. The agent might not have run yet.</p>';
+        } else {
+          // Clear the container
+          newsContainer.innerHTML = '';
+          
+          // Create and append an HTML element for each news item
+          data.forEach(item => {
+            const newsDiv = document.createElement('div');
+            newsDiv.className = 'news-item';
+            
+            const formattedDate = new Date(item.created_at).toLocaleString();
+
+            newsDiv.innerHTML = `
+              <h2><a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a></h2>
+              <p>${item.summary}</p>
+              <div class="timestamp">Fetched on: ${formattedDate}</div>
+            `;
+            newsContainer.appendChild(newsDiv);
+          });
+        }
+      } catch (err) {
+        newsContainer.innerHTML = `<p style="color: red;">Error fetching news: ${err.message}</p>`;
+        console.error(err);
+      } finally {
+        // Hide the loader text
+        loader.style.display = 'none';
+      }
+    }
+
+    // Call the function to display the news when the page loads
+    displayNews();
+  </script>
+
+</body>
+</html>
