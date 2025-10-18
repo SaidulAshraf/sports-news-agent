@@ -1,56 +1,40 @@
 # This is the name of the workflow, which you will see in the Actions tab.
 name: Daily Sports News Scraper
 
-# This section defines when the workflow should run.
 on:
   # This line allows you to run the workflow manually from the Actions tab.
-  # It's great for testing.
   workflow_dispatch:
 
-  # This line sets up the automated schedule.
+  # This line sets up the automated schedule to run at 8:00 AM Dhaka time.
   schedule:
-    # This is a "cron" expression. '0 2 * * *' means run at 0 minutes past
-    # the 2nd hour, every day, every month, every day of the week.
-    # 2:00 AM UTC is 8:00 AM in Dhaka, Bangladesh (GMT+6).
     - cron: '0 2 * * *'
 
-# This section defines the jobs to be run. A workflow can have multiple jobs.
 jobs:
-  # We are defining a single job and naming it "scrape-news".
   scrape-news:
-    # This tells GitHub to prepare a fresh, virtual computer running the
-    # latest version of the Ubuntu operating system for our job.
+    # Use a fresh virtual computer for our job
     runs-on: ubuntu-latest
 
-    # These are the individual steps the computer will perform in order.
     steps:
-      # Step 1: Download your code
-      # This action checks out your repository's code and downloads it
-      # onto the virtual computer so the script can be accessed.
+      # Step 1: Download your code onto the virtual computer
       - name: Check out repository
         uses: actions/checkout@v3
 
-      # Step 2: Install Node.js
-      # This action installs the Node.js programming environment, which is
-      # required to run your JavaScript file. We specify version 18.
+      # Step 2: Install Node.js environment
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
-      # Step 3: Install script dependencies
-      # This command runs "npm install", which reads your package.json file
-      # and installs all the required libraries (Supabase, Axios, Cheerio, etc.).
+      # Step 3: Install all required libraries from package.json
       - name: Install dependencies
         run: npm install
 
-      # Step 4: Run the main script
-      # This is the final and most important step. It executes your scraper script.
+      # Step 4: Run the scraping script from the correct folder
+      # THIS IS THE UPDATED LINE
       - name: Run scraping and summarization script
-        run: node scripts/scrape.js
-        # The 'env' block securely passes the secrets you stored in GitHub Settings
-        # into the script as environment variables. Your script can then access them.
+        run: node api/scrape.js
         env:
+          # This passes your secrets to the script
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
