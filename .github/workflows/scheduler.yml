@@ -19,18 +19,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v3
 
-      # Step 2: Install Node.js environment
+      # Step 2: Install Node.js
+      # This action now installs the modern Node.js version 20.
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20' # <-- THIS IS THE FIX
 
       # Step 3: Install all required libraries from package.json
       - name: Install dependencies
         run: npm install
 
       # Step 4: Run the scraping script from the correct folder
-      # THIS IS THE UPDATED LINE
       - name: Run scraping and summarization script
         run: node api/scrape.js
         env:
