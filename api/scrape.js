@@ -5,7 +5,6 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 
 // --- Environment Variables ---
-// These are provided by the GitHub Actions workflow secrets
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -18,12 +17,10 @@ const model = genAI.getGenerativeModel({ model: "gemini-pro"});
 
 // --- Main Scraper Function ---
 async function runScraper() {
-  // Enhanced logging: Announce the start of the script.
   console.log("--- Starting Daily Sports News Scraper ---");
 
   try {
     // --- STEP 1: Scrape the main news page for article links ---
-    // THIS IS THE CRITICAL FIX: The URL is updated from /latest/ to /news/
     const urlToScrape = 'https://www.espn.com/news/';
     const scrapingbeeUrl = 'https://app.scrapingbee.com/api/v1/';
     
@@ -37,7 +34,9 @@ async function runScraper() {
 
     const $ = cheerio.load(pageData);
     const newsLinks = [];
-    $('article.story-package-module a.contentItem__content').each((i, el) => {
+    
+    // THIS IS THE CRITICAL FIX: The selector is updated from 'article...' to 'section...'
+    $('section.contentItem a.contentItem__content').each((i, el) => {
       if (newsLinks.length < 5) {
         const url = $(el).attr('href');
         if (url && !url.startsWith('http')) {
