@@ -1,19 +1,27 @@
+// This script is designed to be run directly by Node.js in GitHub Actions.
 const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// These environment variables are provided by the GitHub Actions workflow secrets
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const geminiApiKey = process.env.GEMINI_API_KEY;
+const scrapingbeeApiKey = process.env.SCRAPINGBEE_API_KEY;
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+const genAI = new GoogleGenerativeAI(geminiApiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-pro"});
 
-module.exports = async (req, res) => {
+async function runScraper() {
   try {
+    console.log("Starting to scrape the main news page...");
     const urlToScrape = 'https://www.espn.com/latest/';
     const scrapingbeeUrl = 'https://app.scrapingbee.com/api/v1/';
 
     const { data: pageData } = await axios.get(scrapingbeeUrl, {
-      params: { 'api_key': process.env.SCRAPINGBEE_API_KEY, 'url': urlToScrape }
+      params: { 'api_key': scrapingbeeApiKey, 'url': urlToScrape }
     });
 
     const $ = cheerio.load(pageData);
@@ -27,11 +35,13 @@ module.exports = async (req, res) => {
       }
     });
 
+    console.log(`Found ${newsLinks.length} article links to process.`);
     const summarizedNews = [];
     for (const link of newsLinks) {
       try {
+        console.log(`Processing article: ${link}`);
         const { data: articleData } = await axios.get(scrapingbeeUrl, {
-          params: { 'api_key': process.env.SCRAPINGBEE_API_KEY, 'url': link }
+          params: { 'api_key': scrapingbeeApiKey, 'url': link }
         });
 
         const article$ = cheerio.load(articleData);
@@ -44,7 +54,8 @@ module.exports = async (req, res) => {
           const response = await result.response;
           const summary = response.text();
 
-          summarizedNews.push({ title: title, url: link, summary: summary });
+          summarizedNews.push({ title, url: link, summary });
+          console.log(`Successfully summarized: ${title}`);
         }
       } catch (articleError) {
           console.error(`Failed to process article: ${link}`, articleError.message);
@@ -52,13 +63,20 @@ module.exports = async (req, res) => {
     }
 
     if (summarizedNews.length > 0) {
-      const { error } = await supabase.from('sports_news').insert(summarizedNews);
-      if (error) throw error;
+      console.log(`Saving ${summarizedNews.length} new articles to Supabase...`);
+      // Using 'upsert' to avoid duplicate entries based on the URL
+      const { error } = await supabase.from('sports_news').upsert(summarizedNews, { onConflict: 'url' });
+      if (error) {
+        console.error("Error saving to Supabase:", error);
+      } else {
+        console.log("Successfully saved data to Supabase.");
+      }
     }
-
-    res.status(200).send({ message: 'Scraping and summarization with Gemini successful!', data: summarizedNews });
   } catch (error) {
-    console.error('Error in the main process:', error);
-    res.status(500).send({ message: 'Process failed', error: error.message });
+    console.error('A critical error occurred in the main process:', error);
+    process.exit(1); // Exit with an error code to make the GitHub Action fail
   }
-};
+}
+
+// Run the main function
+runScraper();
